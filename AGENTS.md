@@ -1,5 +1,25 @@
 # Dashboard TUI - Agent Documentation
 
+## ⚠️ CRITICAL: Testing Protocol
+**NEVER run the application with `dotnet run` - User handles all testing.**
+After making changes:
+1. Build with `dotnet build` only
+2. Ask user what to test/verify
+3. Wait for user feedback before proceeding
+
+## ⚠️ CRITICAL: PowerShell Commands
+**DO NOT USE THIS COMMAND - IT CRASHES VSCODE:**
+```powershell
+Get-Process | Where-Object {$_.ProcessName -eq 'dashboard-tui'} | Stop-Process -Force; dotnet build
+```
+Instead, run commands separately or manually stop the application before building.
+
+## ⚠️ CRITICAL: Documentation Policy
+**DO NOT create markdown files without explicit permission from the user.**
+This includes summary files, documentation files, or any .md files. Only modify existing markdown files when necessary.
+
+---
+
 ## Terminal.Gui Technical Reference
 
 ### Core Concepts
@@ -148,17 +168,23 @@ dashboard-tui/
 
 ### Phase 2 - Main Display ✓
 - [x] Create MainWindow class
-- [x] Create Header component
+- [x] Create Header component with emoji
 - [x] Implement centered layout
 - [x] Display app name and version
 - [x] Wire up in Program.cs
 - [x] Build verification successful
 - [x] Create Weather plugin component
 - [x] Integrate Weather plugin into MainWindow
+- [x] Add emoji support (NetDriver)
+- [x] Weather condition emojis (20+ conditions mapped)
+- [x] 3-day forecast display (compact single-line)
+- [x] Theme system (Default, Dark, Light, Green)
+- [x] Menu bar with Configuration, Weather, Help menus
+- [x] Status bar with F9, F1, Ctrl+R, Ctrl+Q shortcuts
+- [x] Theme persistence to appsettings.json
+- [x] Weather location change dialog
+- [x] Weather location persistence to appsettings.json
 
 ### Phase 3 - Future
 - [ ] Add dashboard panels
 - [ ] Implement data visualization
-- [ ] Add status bar
-- [ ] Add menu system
-- [ ] Theme configuration
