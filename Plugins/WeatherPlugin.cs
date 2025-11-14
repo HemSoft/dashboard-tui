@@ -14,14 +14,18 @@ public class WeatherPlugin : FrameView
     private readonly Label _locationLabel;
     private readonly Label _forecastLabel;
     private readonly Label _lastUpdateLabel;
+    private readonly Button _prevButton;
+    private readonly Button _nextButton;
     private readonly IWeatherService _weatherService;
     private readonly WeatherConfig _config;
     private readonly System.Threading.Timer? _refreshTimer;
+    private readonly Action? _onLocationIndexChanged;
 
-    public WeatherPlugin(IWeatherService weatherService, WeatherConfig config)
+    public WeatherPlugin(IWeatherService weatherService, WeatherConfig config, Action? onLocationIndexChanged = null)
     {
         _weatherService = weatherService ?? throw new ArgumentNullException(nameof(weatherService));
         _config = config ?? throw new ArgumentNullException(nameof(config));
+        _onLocationIndexChanged = onLocationIndexChanged;
 
         Title = "Weather";
         BorderStyle = LineStyle.Single;
@@ -32,8 +36,44 @@ public class WeatherPlugin : FrameView
             X = 1,
             Y = 0,
             Height = 1,
-            Width = Dim.Fill(),
+            Width = Dim.Fill()! - 10,
             Text = "Location: Loading..."
+        };
+
+        // Previous location button
+        _prevButton = new()
+        {
+            X = Pos.AnchorEnd() - 7,
+            Y = 0,
+            Text = "◀",
+            Width = 3
+        };
+        _prevButton.Accepting += async (s, e) =>
+        {
+            if (_config.Locations.Count > 1)
+            {
+                _config.CurrentLocationIndex = (_config.CurrentLocationIndex - 1 + _config.Locations.Count) % _config.Locations.Count;
+                _onLocationIndexChanged?.Invoke();
+                await LoadWeatherDataAsync();
+            }
+        };
+
+        // Next location button
+        _nextButton = new()
+        {
+            X = Pos.AnchorEnd() - 3,
+            Y = 0,
+            Text = "▶",
+            Width = 3
+        };
+        _nextButton.Accepting += async (s, e) =>
+        {
+            if (_config.Locations.Count > 1)
+            {
+                _config.CurrentLocationIndex = (_config.CurrentLocationIndex + 1) % _config.Locations.Count;
+                _onLocationIndexChanged?.Invoke();
+                await LoadWeatherDataAsync();
+            }
         };
 
         // Temperature
@@ -76,7 +116,10 @@ public class WeatherPlugin : FrameView
             Text = "Last update: Never"
         };
 
-        Add(_locationLabel, _temperatureLabel, _conditionLabel, _forecastLabel, _lastUpdateLabel);
+        Add(_prevButton, _nextButton, _locationLabel, _temperatureLabel, _conditionLabel, _forecastLabel, _lastUpdateLabel);
+
+        // Update button visibility
+        UpdateNavigationButtons();
 
         // Load initial weather data asynchronously
         _ = LoadWeatherDataAsync();
@@ -100,7 +143,8 @@ public class WeatherPlugin : FrameView
     private void UpdateWeather(WeatherData data)
     {
         var weatherEmoji = GetWeatherEmoji(data.Condition);
-        _locationLabel.Text = $"Location: {data.Location}";
+        var locationIndex = _config.Locations.Count > 1 ? $" ({_config.CurrentLocationIndex + 1}/{_config.Locations.Count})" : "";
+        _locationLabel.Text = $"{data.Location}{locationIndex}";
         _temperatureLabel.Text = $"Temperature: {data.TemperatureFahrenheit:F1}°F";
         _conditionLabel.Text = $"{weatherEmoji} {data.Condition}";
 
@@ -121,6 +165,17 @@ public class WeatherPlugin : FrameView
         }
 
         _lastUpdateLabel.Text = $"Last update: {data.LastUpdate:HH:mm:ss}";
+        UpdateNavigationButtons();
+    }
+
+    /// <summary>
+    /// Updates navigation button visibility based on location count
+    /// </summary>
+    private void UpdateNavigationButtons()
+    {
+        var hasMultipleLocations = _config.Locations.Count > 1;
+        _prevButton.Visible = hasMultipleLocations;
+        _nextButton.Visible = hasMultipleLocations;
     }
 
     /// <summary>
@@ -175,7 +230,24 @@ public class WeatherPlugin : FrameView
     {
         try
         {
-            var data = await _weatherService.GetWeatherWithForecastAsync(_config.Location, days: 3);
+            if (_config.Locations.Count == 0)
+            {
+                _locationLabel.Text = "No locations configured";
+                _temperatureLabel.Text = "Temperature: --°F";
+                _conditionLabel.Text = "Add a location to see weather";
+                _forecastLabel.Text = "Forecast: Unavailable";
+                _lastUpdateLabel.Text = $"Last update: {DateTime.Now:HH:mm:ss}";
+                return;
+            }
+
+            // Ensure current index is valid
+            if (_config.CurrentLocationIndex < 0 || _config.CurrentLocationIndex >= _config.Locations.Count)
+            {
+                _config.CurrentLocationIndex = 0;
+            }
+
+            var currentLocation = _config.Locations[_config.CurrentLocationIndex];
+            var data = await _weatherService.GetWeatherWithForecastAsync(currentLocation, days: 3);
             UpdateWeather(data);
         }
         catch (Exception ex)

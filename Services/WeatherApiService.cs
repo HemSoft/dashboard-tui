@@ -95,7 +95,11 @@ public class WeatherApiService : IWeatherService
     private static WeatherData MapToWeatherData(WeatherApiResponse response)
     {
         // For US locations, use state abbreviation; for others, show country
-        var locationName = response.Location.Country == "United States of America" && !string.IsNullOrEmpty(response.Location.Region)
+        var isUSA = response.Location.Country.Equals("United States of America", StringComparison.OrdinalIgnoreCase) ||
+                    response.Location.Country.Equals("USA", StringComparison.OrdinalIgnoreCase) ||
+                    response.Location.Country.Equals("US", StringComparison.OrdinalIgnoreCase);
+
+        var locationName = isUSA && !string.IsNullOrEmpty(response.Location.Region)
             ? $"{response.Location.Name}, {GetStateAbbreviation(response.Location.Region)}"
             : !string.IsNullOrEmpty(response.Location.Region)
                 ? $"{response.Location.Name}, {response.Location.Region}, {response.Location.Country}"

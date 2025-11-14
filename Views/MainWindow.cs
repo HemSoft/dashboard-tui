@@ -46,7 +46,7 @@ public class MainWindow : Window
         };
 
         // Create weather plugin with injected service
-        _weatherPlugin = new(weatherService, config.Weather)
+        _weatherPlugin = new(weatherService, config.Weather, SaveCurrentLocationIndex)
         {
             X = 1,
             Y = Pos.Bottom(_header) + 1,
@@ -58,6 +58,9 @@ public class MainWindow : Window
 
         // Ensure menu bar can receive focus and handle Alt key combinations
         _menuBar.WantMousePositionReports = true;
+
+        // Add keyboard handler for weather navigation
+        KeyDown += OnKeyDown;
 
         // Start UI refresh timer if interval is positive
         if (_refreshIntervalMs > 0)
@@ -77,6 +80,49 @@ public class MainWindow : Window
     private void RefreshUi()
     {
         UpdateTitleWithTime();
+    }
+
+    /// <summary>
+    /// Handles keyboard shortcuts for weather navigation
+    /// </summary>
+    private void OnKeyDown(object? sender, Key e)
+    {
+        // Left Arrow - Previous location
+        if (e == Key.CursorLeft)
+        {
+            NavigateWeatherPrevious();
+        }
+        // Right Arrow - Next location
+        else if (e == Key.CursorRight)
+        {
+            NavigateWeatherNext();
+        }
+    }
+
+    /// <summary>
+    /// Navigates to the previous weather location
+    /// </summary>
+    private void NavigateWeatherPrevious()
+    {
+        if (_config.Weather.Locations.Count > 1)
+        {
+            _config.Weather.CurrentLocationIndex = (_config.Weather.CurrentLocationIndex - 1 + _config.Weather.Locations.Count) % _config.Weather.Locations.Count;
+            SaveCurrentLocationIndex();
+            _ = _weatherPlugin.RefreshAsync();
+        }
+    }
+
+    /// <summary>
+    /// Navigates to the next weather location
+    /// </summary>
+    private void NavigateWeatherNext()
+    {
+        if (_config.Weather.Locations.Count > 1)
+        {
+            _config.Weather.CurrentLocationIndex = (_config.Weather.CurrentLocationIndex + 1) % _config.Weather.Locations.Count;
+            SaveCurrentLocationIndex();
+            _ = _weatherPlugin.RefreshAsync();
+        }
     }
 
     /// <summary>
@@ -126,7 +172,8 @@ public class MainWindow : Window
                     new MenuBarItem("_Weather", new MenuItem[]
                     {
                         new("_Refresh", "Refresh weather data", async () => await _weatherPlugin.RefreshAsync(), null, null, Key.R.WithCtrl),
-                        new("Change _Location", "Change weather location", ChangeWeatherLocation, null, null, Key.L.WithCtrl.WithShift)
+                        new("_Add Location", "Add a new weather location", AddWeatherLocation, null, null, Key.A.WithCtrl.WithShift),
+                        new("_Remove Location", "Remove current weather location", RemoveWeatherLocation, null, null, Key.D.WithCtrl.WithShift)
                     })
                 }),
                 new MenuBarItem("_Help", new MenuItem[]
@@ -149,6 +196,8 @@ public class MainWindow : Window
             new Shortcut(Key.F9, "Menu", null),
             new Shortcut(Key.F1, "About", ShowAbout),
             new Shortcut(Key.R.WithCtrl, "Refresh", async () => await _weatherPlugin.RefreshAsync()),
+            new Shortcut(Key.CursorLeft, "◀Weather", NavigateWeatherPrevious),
+            new Shortcut(Key.CursorRight, "Weather▶", NavigateWeatherNext),
             new Shortcut(Key.Q.WithCtrl, "Quit", () => Application.RequestStop())
         ]);
     }
@@ -218,9 +267,9 @@ public class MainWindow : Window
     }
 
     /// <summary>
-    /// Saves the weather location to appsettings.json
+    /// Saves the current location index to appsettings.json
     /// </summary>
-    private void SaveLocationToConfig(string location)
+    private void SaveCurrentLocationIndex()
     {
         try
         {
@@ -242,9 +291,9 @@ public class MainWindow : Window
 
                         foreach (var weatherProp in property.Value.EnumerateObject())
                         {
-                            if (weatherProp.Name == "Location")
+                            if (weatherProp.Name == "CurrentLocationIndex")
                             {
-                                writer.WriteString("Location", location);
+                                writer.WriteNumber("CurrentLocationIndex", _config.Weather.CurrentLocationIndex);
                             }
                             else
                             {
@@ -264,14 +313,85 @@ public class MainWindow : Window
             }
 
             File.WriteAllText(configPath, System.Text.Encoding.UTF8.GetString(stream.ToArray()));
+        }
+        catch
+        {
+            // Silently ignore save errors during navigation
+        }
+    }
 
-            // Update the in-memory config
-            _config.Weather.Location = location;
+    /// <summary>
+    /// Saves the weather locations to appsettings.json
+    /// </summary>
+    private void SaveLocationsToConfig()
+    {
+        try
+        {
+            var configPath = "appsettings.json";
+            var json = File.ReadAllText(configPath);
+            var doc = JsonDocument.Parse(json);
+
+            using var stream = new MemoryStream();
+            using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
+            {
+                writer.WriteStartObject();
+
+                foreach (var property in doc.RootElement.EnumerateObject())
+                {
+                    if (property.Name == "Weather")
+                    {
+                        writer.WritePropertyName("Weather");
+                        writer.WriteStartObject();
+
+                        foreach (var weatherProp in property.Value.EnumerateObject())
+                        {
+                            if (weatherProp.Name == "Locations")
+                            {
+                                writer.WritePropertyName("Locations");
+                                writer.WriteStartArray();
+                                foreach (var location in _config.Weather.Locations)
+                                {
+                                    writer.WriteStringValue(location);
+                                }
+                                writer.WriteEndArray();
+                            }
+                            else if (weatherProp.Name == "CurrentLocationIndex")
+                            {
+                                writer.WriteNumber("CurrentLocationIndex", _config.Weather.CurrentLocationIndex);
+                            }
+                            else
+                            {
+                                weatherProp.WriteTo(writer);
+                            }
+                        }
+
+                        writer.WriteEndObject();
+                    }
+                    else
+                    {
+                        property.WriteTo(writer);
+                    }
+                }
+
+                writer.WriteEndObject();
+            }
+
+            File.WriteAllText(configPath, System.Text.Encoding.UTF8.GetString(stream.ToArray()));
         }
         catch (Exception ex)
         {
-            MessageBox.ErrorQuery("Save Error", $"Failed to save location: {ex.Message}", "OK");
+            MessageBox.ErrorQuery("Save Error", $"Failed to save locations: {ex.Message}", "OK");
         }
+    }
+
+    /// <summary>
+    /// Saves the weather location to appsettings.json (legacy - now uses SaveLocationsToConfig)
+    /// </summary>
+    private void SaveLocationToConfig(string location)
+    {
+        _config.Weather.Locations = [location];
+        _config.Weather.CurrentLocationIndex = 0;
+        SaveLocationsToConfig();
     }
 
     /// <summary>
@@ -288,19 +408,21 @@ public class MainWindow : Window
             "  Ctrl+L - Light Theme\n" +
             "  Ctrl+G - Green Theme\n" +
             "  Ctrl+R - Refresh Weather\n" +
-            "  Ctrl+Shift+L - Change Location\n" +
+            "  ←/→ or ,/. - Navigate Locations\n" +
+            "  Ctrl+Shift+A - Add Location\n" +
+            "  Ctrl+Shift+D - Remove Location\n" +
             "  Ctrl+Q - Quit",
             "OK");
     }
 
     /// <summary>
-    /// Changes the weather location
+    /// Adds a new weather location
     /// </summary>
-    private void ChangeWeatherLocation()
+    private void AddWeatherLocation()
     {
         var dialog = new Dialog
         {
-            Title = "Change Weather Location",
+            Title = "Add Weather Location",
             Width = 60,
             Height = 10
         };
@@ -316,8 +438,8 @@ public class MainWindow : Window
         {
             X = 1,
             Y = 3,
-            Width = Dim.Fill() - 2,
-            Text = _config.Weather.Location
+            Width = Dim.Fill()! - 2,
+            Text = ""
         };
 
         var okButton = new Button
@@ -340,7 +462,9 @@ public class MainWindow : Window
             var newLocation = locationField.Text?.ToString()?.Trim();
             if (!string.IsNullOrEmpty(newLocation))
             {
-                SaveLocationToConfig(newLocation);
+                _config.Weather.Locations.Add(newLocation);
+                _config.Weather.CurrentLocationIndex = _config.Weather.Locations.Count - 1;
+                SaveLocationsToConfig();
                 await _weatherPlugin.RefreshAsync();
                 Application.RequestStop(dialog);
             }
@@ -354,6 +478,42 @@ public class MainWindow : Window
         dialog.Add(label, locationField, okButton, cancelButton);
         Application.Run(dialog);
         dialog.Dispose();
+    }
+
+    /// <summary>
+    /// Removes the current weather location
+    /// </summary>
+    private void RemoveWeatherLocation()
+    {
+        if (_config.Weather.Locations.Count <= 1)
+        {
+            MessageBox.ErrorQuery("Cannot Remove", "You must have at least one location configured.", "OK");
+            return;
+        }
+
+        var currentLocation = _config.Weather.Locations[_config.Weather.CurrentLocationIndex];
+        var result = MessageBox.Query("Remove Location",
+            $"Remove location '{currentLocation}'?",
+            "Yes", "No");
+
+        if (result == 0) // Yes
+        {
+            _config.Weather.Locations.RemoveAt(_config.Weather.CurrentLocationIndex);
+            if (_config.Weather.CurrentLocationIndex >= _config.Weather.Locations.Count)
+            {
+                _config.Weather.CurrentLocationIndex = _config.Weather.Locations.Count - 1;
+            }
+            SaveLocationsToConfig();
+            _ = _weatherPlugin.RefreshAsync();
+        }
+    }
+
+    /// <summary>
+    /// Changes the weather location (legacy - now redirects to Add)
+    /// </summary>
+    private void ChangeWeatherLocation()
+    {
+        AddWeatherLocation();
     }
 
     /// <summary>

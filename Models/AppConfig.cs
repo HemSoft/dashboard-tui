@@ -25,6 +25,7 @@ public record MainWindowConfig
 public record WeatherConfig
 {
     public required string ApiKey { get; init; }
-    public string Location { get; set; } = "auto:ip";
+    public List<string> Locations { get; set; } = ["auto:ip"];
+    public int CurrentLocationIndex { get; set; } = 0;
     public int DataRefreshIntervalSeconds { get; init; } = 600; // 10 minutes default
 }
