@@ -14,13 +14,14 @@ public class MainWindow : Window
 {
     private readonly Header _header;
     private readonly WeatherPlugin _weatherPlugin;
+    private readonly NotificationsPlugin _notificationsPlugin;
     private readonly System.Threading.Timer? _refreshTimer;
     private readonly int _refreshIntervalMs;
     private readonly MenuBar _menuBar;
     private readonly StatusBar _statusBar;
     private readonly AppConfig _config;
 
-    public MainWindow(IWeatherService weatherService, AppConfig config)
+    public MainWindow(IWeatherService weatherService, IWindowsNotificationService notificationService, AppConfig config)
     {
         _config = config;
         _refreshIntervalMs = config.MainWindow.UiRefreshIntervalSeconds * 1000;
@@ -37,7 +38,7 @@ public class MainWindow : Window
         _statusBar = CreateStatusBar();
 
         // Create and add the header
-        _header = new(false)  // Don't show update time in header since it's in title bar
+        _header = new("Dashboard", false)  // Don't show update time in header since it's in title bar
         {
             X = 0,
             Y = Pos.Bottom(_menuBar),
@@ -46,18 +47,34 @@ public class MainWindow : Window
         };
 
         // Create weather plugin with injected service
-        _weatherPlugin = new(weatherService, config.Weather, SaveCurrentLocationIndex)
+        _weatherPlugin = new(weatherService, config.Weather, SaveCurrentLocationIndex, config.MainWindow.TimeFormat)
         {
             X = 1,
             Y = Pos.Bottom(_header) + 1,
             Width = 50,
-            Height = 8
+            Height = 8,
+            CanFocus = true,
+            TabStop = TabBehavior.TabStop
         };
 
-        Add(_menuBar, _statusBar, _header, _weatherPlugin);
+        // Create notifications plugin with injected service
+        _notificationsPlugin = new(notificationService, config.Notifications)
+        {
+            X = Pos.Right(_weatherPlugin) + 2,
+            Y = Pos.Bottom(_header) + 1,
+            Width = Dim.Fill()! - 1,
+            Height = 10,
+            CanFocus = true,
+            TabStop = TabBehavior.TabStop
+        };
+
+        Add(_menuBar, _statusBar, _header, _weatherPlugin, _notificationsPlugin);
 
         // Ensure menu bar can receive focus and handle Alt key combinations
         _menuBar.WantMousePositionReports = true;
+
+        // Set initial focus to weather plugin
+        _weatherPlugin.SetFocus();
 
         // Add keyboard handler for weather navigation
         KeyDown += OnKeyDown;
@@ -133,7 +150,9 @@ public class MainWindow : Window
         var baseTitle = $"Dashboard TUI ({Application.QuitKey} to quit)";
         if (_config.MainWindow.ShowLastUpdateInHeader)
         {
-            var timeStr = $"Updated: {DateTime.Now:HH:mm:ss}";
+            var timeStr = _config.MainWindow.TimeFormat.ToLowerInvariant() == "12h"
+                ? $"Updated: {DateTime.Now:h:mm tt}"
+                : $"Updated: {DateTime.Now:HH:mm}";
             var totalWidth = Application.Driver?.Cols ?? 80;
             var spacing = totalWidth - baseTitle.Length - timeStr.Length - 4; // 4 for window border
             if (spacing > 1)

@@ -18,14 +18,16 @@ public class WeatherPlugin : FrameView
     private readonly Button _nextButton;
     private readonly IWeatherService _weatherService;
     private readonly WeatherConfig _config;
+    private readonly string _timeFormat;
     private readonly System.Threading.Timer? _refreshTimer;
     private readonly Action? _onLocationIndexChanged;
 
-    public WeatherPlugin(IWeatherService weatherService, WeatherConfig config, Action? onLocationIndexChanged = null)
+    public WeatherPlugin(IWeatherService weatherService, WeatherConfig config, Action? onLocationIndexChanged = null, string timeFormat = "24h")
     {
         _weatherService = weatherService ?? throw new ArgumentNullException(nameof(weatherService));
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _onLocationIndexChanged = onLocationIndexChanged;
+        _timeFormat = timeFormat;
 
         Title = "Weather";
         BorderStyle = LineStyle.Single;
@@ -164,7 +166,7 @@ public class WeatherPlugin : FrameView
             _forecastLabel.Text = "Forecast: Unavailable";
         }
 
-        _lastUpdateLabel.Text = $"Last update: {data.LastUpdate:HH:mm:ss}";
+        _lastUpdateLabel.Text = $"Last update: {FormatTime(data.LocalTime)} ({FormatTime(data.LastUpdate)} remote)";
         UpdateNavigationButtons();
     }
 
@@ -179,6 +181,16 @@ public class WeatherPlugin : FrameView
     }
 
     /// <summary>
+    /// Formats time according to configured format
+    /// </summary>
+    private string FormatTime(DateTime dateTime)
+    {
+        return _timeFormat.ToLowerInvariant() == "12h"
+            ? dateTime.ToString("h:mm tt")
+            : dateTime.ToString("HH:mm");
+    }
+
+    /// <summary>
     /// Maps weather conditions to appropriate emojis
     /// </summary>
     private static string GetWeatherEmoji(string condition)
@@ -188,38 +200,38 @@ public class WeatherPlugin : FrameView
         return lowerCondition switch
         {
             // Clear/Sunny
-            var c when c.Contains("clear") || c.Contains("sunny") => "\u2600\uFE0F",  // ☀️
+            var c when c.Contains("clear") || c.Contains("sunny") => "☀️",
 
             // Clouds
-            var c when c.Contains("partly cloudy") || c.Contains("partly sunny") => "\u26C5",  // ⛅
-            var c when c.Contains("cloudy") || c.Contains("overcast") => "\u2601\uFE0F",  // ☁️
+            var c when c.Contains("partly cloudy") || c.Contains("partly sunny") => "⛅",
+            var c when c.Contains("cloudy") || c.Contains("overcast") => "☁️",
 
             // Rain
-            var c when c.Contains("drizzle") || c.Contains("light rain") => "\U0001F327\uFE0F",  // 🌧️
-            var c when c.Contains("rain") || c.Contains("shower") => "\U0001F327\uFE0F",  // 🌧️
-            var c when c.Contains("heavy rain") || c.Contains("downpour") => "\u26C8\uFE0F",  // ⛈️
+            var c when c.Contains("drizzle") || c.Contains("light rain") => "🌧️",
+            var c when c.Contains("rain") || c.Contains("shower") => "🌧️",
+            var c when c.Contains("heavy rain") || c.Contains("downpour") => "⛈️",
 
             // Thunderstorm
-            var c when c.Contains("thunder") || c.Contains("lightning") => "\u26C8\uFE0F",  // ⛈️
+            var c when c.Contains("thunder") || c.Contains("lightning") => "⛈️",
 
             // Snow
-            var c when c.Contains("snow") || c.Contains("flurries") => "\u2744\uFE0F",  // ❄️
-            var c when c.Contains("blizzard") => "\U0001F328\uFE0F",  // 🌨️
+            var c when c.Contains("snow") || c.Contains("flurries") => "❄️",
+            var c when c.Contains("blizzard") => "🌨️",
 
             // Fog/Mist
-            var c when c.Contains("fog") || c.Contains("mist") || c.Contains("haze") => "\U0001F32B\uFE0F",  // 🌫️
+            var c when c.Contains("fog") || c.Contains("mist") || c.Contains("haze") => "🌫️",
 
             // Wind
-            var c when c.Contains("wind") || c.Contains("breezy") => "\U0001F32C\uFE0F",  // 🌬️
+            var c when c.Contains("wind") || c.Contains("breezy") => "🌬️",
 
             // Storm/Tornado
-            var c when c.Contains("tornado") || c.Contains("hurricane") => "\U0001F32A\uFE0F",  // 🌪️
+            var c when c.Contains("tornado") || c.Contains("hurricane") => "🌪️",
 
             // Night
-            var c when c.Contains("night") && c.Contains("clear") => "\U0001F319",  // 🌙
+            var c when c.Contains("night") && c.Contains("clear") => "🌙",
 
             // Default
-            _ => "\U0001F324\uFE0F"  // 🌤️ (sun behind cloud)
+            _ => "🌤️"
         };
     }
 

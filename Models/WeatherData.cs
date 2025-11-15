@@ -9,6 +9,7 @@ public record WeatherData
     public required double TemperatureFahrenheit { get; init; }
     public required string Condition { get; init; }
     public required DateTime LastUpdate { get; init; }
+    public required DateTime LocalTime { get; init; }
     public double? Humidity { get; init; }
     public double? WindSpeedKph { get; init; }
     public List<ForecastDay>? Forecast { get; init; }

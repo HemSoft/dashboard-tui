@@ -119,6 +119,7 @@ public class WeatherApiService : IWeatherService
             TemperatureFahrenheit = response.Current.TempFahrenheit,
             Condition = response.Current.Condition.Text,
             LastUpdate = DateTime.Parse(response.Current.LastUpdated),
+            LocalTime = DateTime.Now,
             Humidity = response.Current.Humidity,
             WindSpeedKph = response.Current.WindKph,
             Forecast = forecast

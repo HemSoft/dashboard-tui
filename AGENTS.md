@@ -4,8 +4,9 @@
 **NEVER run the application with `dotnet run` - User handles all testing.**
 After making changes:
 1. Build with `dotnet build` only
-2. Ask user what to test/verify
-3. Wait for user feedback before proceeding
+2. Check for unused using directives
+3. Ask user what to test/verify
+4. Wait for user feedback before proceeding
 
 ## ⚠️ CRITICAL: PowerShell Commands
 **DO NOT USE THIS COMMAND - IT CRASHES VSCODE:**
